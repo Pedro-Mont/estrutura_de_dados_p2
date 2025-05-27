@@ -1,0 +1,19 @@
+{
+    "tipos": {
+        "Heroi": [
+            "Peter Parker"
+        ]
+    },
+    "grupo_personagem": [
+        {
+            "ID": "01",
+            "Tipo": "Heroi",
+            "Nome": "Peter Parker",
+            "Codinome": "Homem-Aranha",
+            "Poder": "Aranha",
+            "Idade": "20",
+            "Gênero": "M",
+            "Origem": "Marvel"
+        }
+    ]
+}
