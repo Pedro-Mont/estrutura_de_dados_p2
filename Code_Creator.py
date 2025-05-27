@@ -12,8 +12,12 @@ CAMINHO_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Json_Cr
 
 #(Função para salvar dados em JSON)
 def salvar_dados():
+    dados_para_salvar = {
+        "tipos": {k: list(v) for k, v in tipos.items()},
+        "grupo_personagem": grupo_personagem
+    }
     with open(CAMINHO_JSON, "w", encoding="utf-8") as f:
-        json.dump({"tipos": tipos, "grupo_personagem": grupo_personagem}, f, ensure_ascii=False, indent=4)
+        json.dump(dados_para_salvar, f, ensure_ascii=False, indent=4)
 
 #(Função para carregar dados do JSON)
 def carregar_dados():
@@ -21,7 +25,8 @@ def carregar_dados():
     if os.path.exists(CAMINHO_JSON):
         with open(CAMINHO_JSON, "r", encoding="utf-8") as f:
             dados = json.load(f)
-            tipos = dados.get("tipos", {})
+            # Convertemos as listas de volta para conjuntos
+            tipos = {k: set(v) for k, v in dados.get("tipos", {}).items()}
             grupo_personagem = dados.get("grupo_personagem", [])
 
 #(Carregamento automático ao iniciar)
@@ -93,8 +98,9 @@ def info_personagem_id():
     for p in grupo_personagem:
         if p["ID"] == id_busca:
             print("\n- Personagem encontrado:")
-            maior_chave = max(len(k) for k in p.keys())
-            for chave, valor in p.items():
+            dados_tupla = tuple(p.items())
+            maior_chave = max(len(k) for k, _ in dados_tupla)
+            for chave, valor in dados_tupla:
                 print(f"{(chave + ':').ljust(maior_chave + 1)} {valor}")
             return
     print("\n''Personagem não encontrado.''")
@@ -124,6 +130,10 @@ def editar_personagem():
         print("\n''Tipo não existe.''")
         return
 
+    # Atualiza o conjunto de nomes no tipo antigo, caso o tipo seja alterado
+    tipos[personagem["Tipo"]].discard(personagem["Nome"])
+    tipos[novo_tipo].add(personagem["Nome"])
+
     personagem["ID"]       = novo_id
     personagem["Tipo"]     = novo_tipo
     personagem["Nome"]     = input("Novo Nome: ").strip().title() or "[-Desconhecido-]"
@@ -132,6 +142,8 @@ def editar_personagem():
     personagem["Idade"]    = input("Nova Idade: ").strip() or "[-Desconhecido-]"
     personagem["Gênero"]   = input("Novo Gênero (M/F): ").strip().upper() or "[-Desconhecido-]"
     personagem["Origem"]   = input("Nova Origem: ").strip().capitalize() or "[-Desconhecido-]"
+
+    tipos[novo_tipo].add(personagem["Nome"])
 
     print("\n''Personagem editado com sucesso!''")
 
