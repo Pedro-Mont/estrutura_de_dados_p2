@@ -1,38 +1,56 @@
 import json
 import os
+from collections import deque
 
-#(Dados principais)
+stack_ultimos_personagens = []
+
+# (Dados principais)
 tipos = {}
-grupo_personagem = []
+
+# Definição do nó (Node) para a lista encadeada
+class PersonagemNode:
+    def __init__(self, dados):
+        self.dados = dados  # dicionário de informações
+        self.next = None
+
+# Início da lista encadeada (cabeça)
+personagem_head = None
 
 print("\n |[CHARACTER CREATOR]|")
 
-#(Caminho do JSON na mesma pasta do script)
 CAMINHO_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Json_Creator.json")
 
-#(Função para salvar dados em JSON)
+# Função para salvar dados em JSON
 def salvar_dados():
-    dados_para_salvar = {
-        "tipos": {k: list(v) for k, v in tipos.items()},
-        "grupo_personagem": grupo_personagem
-    }
-    with open(CAMINHO_JSON, "w", encoding="utf-8") as f:
-        json.dump(dados_para_salvar, f, ensure_ascii=False, indent=4)
+    lista_personagens = []
+    atual = personagem_head
+    while atual:
+        lista_personagens.append(atual.dados)
+        atual = atual.next
 
-#(Função para carregar dados do JSON)
+    with open(CAMINHO_JSON, "w", encoding="utf-8") as f:
+        json.dump({"tipos": {k: list(v) for k, v in tipos.items()}, "grupo_personagem": lista_personagens}, f, ensure_ascii=False, indent=4)
+
+# Função para carregar dados do JSON
 def carregar_dados():
-    global tipos, grupo_personagem
+    global tipos, personagem_head
     if os.path.exists(CAMINHO_JSON):
         with open(CAMINHO_JSON, "r", encoding="utf-8") as f:
             dados = json.load(f)
-            # Convertemos as listas de volta para conjuntos
-            tipos = {k: set(v) for k, v in dados.get("tipos", {}).items()}
-            grupo_personagem = dados.get("grupo_personagem", [])
+            tipos.update({k: set(v) for k, v in dados.get("tipos", {}).items()})
+            lista_personagens = dados.get("grupo_personagem", [])
+            anterior = None
+            for p in lista_personagens:
+                novo_node = PersonagemNode(p)
+                if not personagem_head:
+                    personagem_head = novo_node
+                else:
+                    anterior.next = novo_node
+                anterior = novo_node
 
-#(Carregamento automático ao iniciar)
 carregar_dados()
 
-#FUNÇÃO(1)-cadastrar_tipo.________________________________
+# Função para cadastrar tipo
 def cadastrar_tipo():
     nome = input("Digite o nome do tipo: ").strip().title()
     if not nome:
@@ -41,11 +59,12 @@ def cadastrar_tipo():
     if nome in tipos:
         print("\n''Tipo já cadastrado.''")
     else:
-        tipos[nome] = []
+        tipos[nome] = set()
         print(f"\n''Tipo ({nome}) cadastrado com sucesso!''")
 
-# FUNÇÃO(2)-registrar_personagem.________________________________
+# Função para registrar personagem
 def registrar_personagem():
+    global personagem_head
     if not tipos:
         print("\n''Não é possível cadastrar personagem pois não há um Tipo.''")
         return
@@ -54,9 +73,13 @@ def registrar_personagem():
     if not registro_id:
         print("\n''ID não informado.''")
         return
-    if any(p["ID"] == registro_id for p in grupo_personagem):
-        print("\n''ID já existente.''")
-        return
+
+    atual = personagem_head
+    while atual:
+        if atual.dados["ID"] == registro_id:
+            print("\n''ID já existente.''")
+            return
+        atual = atual.next
 
     tipo = input("Informe o Nome do Tipo: ").strip().title()
     if not tipo:
@@ -84,87 +107,107 @@ def registrar_personagem():
         "Origem": origem
     }
 
-    grupo_personagem.append(personagem)
-    tipos[tipo].append(nome)
+    novo_node = PersonagemNode(personagem)
+    if not personagem_head:
+        personagem_head = novo_node
+    else:
+        atual = personagem_head
+        while atual.next:
+            atual = atual.next
+        atual.next = novo_node
+
+    tipos[tipo].add(nome)
+    stack_ultimos_personagens.append(personagem)
     print("\n''Personagem cadastrado com sucesso!''")
 
-#FUNÇÃO(3)-info_personagem_id.________________________________
+# Função para exibir informações do personagem pelo ID
 def info_personagem_id():
-    if not grupo_personagem:
+    if not personagem_head:
         print("\n''Nenhum personagem cadastrado.''")
         return
 
     id_busca = input("Digite o ID do personagem: ")
-    for p in grupo_personagem:
-        if p["ID"] == id_busca:
+    atual = personagem_head
+    while atual:
+        if atual.dados["ID"] == id_busca:
             print("\n- Personagem encontrado:")
-            dados_tupla = tuple(p.items())
+            dados_tupla = tuple(atual.dados.items())
             maior_chave = max(len(k) for k, _ in dados_tupla)
             for chave, valor in dados_tupla:
                 print(f"{(chave + ':').ljust(maior_chave + 1)} {valor}")
             return
+        atual = atual.next
     print("\n''Personagem não encontrado.''")
 
-#FUNÇÃO(4)-editar_personagem.________________________________
+# Função para editar personagem
 def editar_personagem():
-    if not grupo_personagem:
+    if not personagem_head:
         print("\n''Nenhum personagem cadastrado.''")
         return
 
     id_atual = input("Digite o ID do personagem a editar: ")
-    personagem = next((p for p in grupo_personagem if p["ID"] == id_atual), None)
-    if not personagem:
-        print("\n''Personagem não encontrado.''")
-        return
+    atual = personagem_head
+    while atual:
+        if atual.dados["ID"] == id_atual:
+            novo_id = input("Novo ID: ").strip() or atual.dados["ID"]
+            if not novo_id:
+                print("\n''ID não informado.''")
+                return
 
-    novo_id = input("Novo ID: ").strip() or personagem["ID"]
-    if not novo_id:
-        print("\n''ID não informado.''")
-        return
-    if novo_id != id_atual and any(p["ID"] == novo_id for p in grupo_personagem):
-        print("\n''ID já existente.''")
-        return
+            # Verifica se novo_id já existe
+            checar = personagem_head
+            while checar:
+                if checar.dados["ID"] == novo_id and checar != atual:
+                    print("\n''ID já existente.''")
+                    return
+                checar = checar.next
 
-    novo_tipo = input("Novo Tipo: ").strip().title() or personagem["Tipo"]
-    if novo_tipo not in tipos:
-        print("\n''Tipo não existe.''")
-        return
+            novo_tipo = input("Novo Tipo: ").strip().title() or atual.dados["Tipo"]
+            if novo_tipo not in tipos:
+                print("\n''Tipo não existe.''")
+                return
 
-    # Atualiza o conjunto de nomes no tipo antigo, caso o tipo seja alterado
-    tipos[personagem["Tipo"]].discard(personagem["Nome"])
-    tipos[novo_tipo].add(personagem["Nome"])
+            atual.dados["ID"]       = novo_id
+            atual.dados["Tipo"]     = novo_tipo
+            atual.dados["Nome"]     = input("Novo Nome: ").strip().title() or "[-Desconhecido-]"
+            atual.dados["Codinome"] = input("Novo Codinome: ").strip().title() or "[-Desconhecido-]"
+            atual.dados["Poder"]    = input("Novo Poder: ").strip().capitalize() or "[-Desconhecido-]"
+            atual.dados["Idade"]    = input("Nova Idade: ").strip() or "[-Desconhecido-]"
+            atual.dados["Gênero"]   = input("Novo Gênero (M/F): ").strip().upper() or "[-Desconhecido-]"
+            atual.dados["Origem"]   = input("Nova Origem: ").strip().capitalize() or "[-Desconhecido-]"
 
-    personagem["ID"]       = novo_id
-    personagem["Tipo"]     = novo_tipo
-    personagem["Nome"]     = input("Novo Nome: ").strip().title() or "[-Desconhecido-]"
-    personagem["Codinome"] = input("Novo Codinome: ").strip().title() or "[-Desconhecido-]"
-    personagem["Poder"]    = input("Novo Poder: ").strip().capitalize() or "[-Desconhecido-]"
-    personagem["Idade"]    = input("Nova Idade: ").strip() or "[-Desconhecido-]"
-    personagem["Gênero"]   = input("Novo Gênero (M/F): ").strip().upper() or "[-Desconhecido-]"
-    personagem["Origem"]   = input("Nova Origem: ").strip().capitalize() or "[-Desconhecido-]"
+            print("\n''Personagem editado com sucesso!''")
+            return
+        atual = atual.next
+    print("\n''Personagem não encontrado.''")
 
-    tipos[novo_tipo].add(personagem["Nome"])
-
-    print("\n''Personagem editado com sucesso!''")
-
-#FUNÇÃO(5)-excluir_personagem.________________________________
+# Função para excluir personagem
 def excluir_personagem():
-    if not grupo_personagem:
+    global personagem_head
+    if not personagem_head:
         print("\n''Nenhum personagem cadastrado.''")
         return
 
     id_excluir = input("Digite o ID do personagem a excluir: ")
-    for p in grupo_personagem:
-        if p["ID"] == id_excluir:
-            grupo_personagem.remove(p)
-            tipos[p["Tipo"]].remove(p["Nome"])
-            print(f"\nPersonagem ({p['Nome'].title()}/{p['Codinome'].title()}) excluído com sucesso!")
+
+    atual = personagem_head
+    anterior = None
+    while atual:
+        if atual.dados["ID"] == id_excluir:
+            if anterior:
+                anterior.next = atual.next
+            else:
+                personagem_head = atual.next
+            tipos[atual.dados["Tipo"]].remove(atual.dados["Nome"])
+            print(f"\nPersonagem ({atual.dados['Nome'].title()}/{atual.dados['Codinome'].title()}) excluído com sucesso!")
             return
+        anterior = atual
+        atual = atual.next
     print("\n''Personagem não encontrado.''")
 
-#FUNÇÃO(6)-mostrar_personagens_do_tipo.___________________________
+# Função para mostrar personagens do tipo
 def mostrar_personagens_do_tipo():
-    if not grupo_personagem:
+    if not personagem_head:
         print("\n''Nenhum personagem cadastrado.''")
         return
 
@@ -173,7 +216,13 @@ def mostrar_personagens_do_tipo():
         print("\n''Tipo não encontrado.''")
         return
 
-    encontrados = [p for p in grupo_personagem if p["Tipo"] == tipo]
+    atual = personagem_head
+    encontrados = []
+    while atual:
+        if atual.dados["Tipo"] == tipo:
+            encontrados.append(atual.dados)
+        atual = atual.next
+
     if not encontrados:
         print("\n''Nenhum personagem desse tipo.''")
         return
@@ -182,27 +231,27 @@ def mostrar_personagens_do_tipo():
     for p in encontrados:
         print(f'({p["ID"]}): {p["Codinome"]}')
 
-#FUNÇÃO(7)-mostrar_tipos.________________________________
+
 def mostrar_tipos():
     if not tipos:
         print("\n''Tipo não cadastrado ainda.''")
         return
-
+    
     print("\nTipos cadastrados:")
     for t in tipos:
         print(f"- ({t})")
 
-#FUNÇÃO(8)-editar_tipo.________________________________
+
 def editar_tipo():
     if not tipos:
         print("\n''Nenhum tipo cadastrado.''")
         return
-
+    
     tipo_atual = input("Digite o nome do tipo que deseja editar: ").strip().title()
     if tipo_atual not in tipos:
         print("\n''Tipo não encontrado.''")
         return
-
+    
     novo_tipo = input("Digite o novo nome do tipo: ").strip().title()
     if not novo_tipo:
         print("\n''Tipo não informado.''")
@@ -213,31 +262,86 @@ def editar_tipo():
     if novo_tipo in tipos:
         print("\n''Tipo já existente.''")
         return
-
     tipos[novo_tipo] = tipos.pop(tipo_atual)
-
-    for p in grupo_personagem:
-        if p["Tipo"] == tipo_atual:
-            p["Tipo"] = novo_tipo
-
+    atual = personagem_head
+    while atual:
+        if atual.dados["Tipo"] == tipo_atual:
+            atual.dados["Tipo"] = novo_tipo
+        atual = atual.next
     print("\n''Tipo editado com sucesso.''")
 
-#FUNÇÃO(9)-excluir_tipo.________________________________
 def excluir_tipo():
+    global personagem_head
     if not tipos:
         print("\n''Nenhum tipo cadastrado.''")
         return
-
     tipo = input("Digite o nome do tipo a excluir: ").strip().title()
     if tipo not in tipos:
         print("\n''Tipo não encontrado.''")
         return
-
-    grupo_personagem[:] = [p for p in grupo_personagem if p["Tipo"] != tipo]
+    # Remove todos os personagens desse tipo
+    atual = personagem_head
+    anterior = None
+    while atual:
+        if atual.dados["Tipo"] == tipo:
+            if anterior:
+                anterior.next = atual.next
+            else:
+                personagem_head = atual.next
+            atual = anterior.next if anterior else personagem_head
+        else:
+            anterior = atual
+            atual = atual.next
     del tipos[tipo]
     print(f"\n''Tipo ({tipo}) excluído com sucesso!''")
 
-#FUNÇÃO(10)-main.________________________________
+# (Fila de Recrutamento)
+fila_missão = deque()
+
+#Funçõe de adicionar na fila, mostrar a fila e recrutar pesonagem
+def adicionar_na_fila():
+    if not personagem_head:
+        print("\n''Nenhum personagem cadastrado.''")
+        return
+
+    id_personagem = input("Informe o ID do personagem a recrutar para missão: ").strip()
+    atual = personagem_head
+    while atual:
+        if atual.dados["ID"] == id_personagem:
+            fila_missão.append(atual.dados)
+            print(f"\nPersonagem ({atual.dados['Codinome']}) adicionado à missão.")
+            return
+        atual = atual.next
+    print("\n''Personagem não encontrado.''")
+
+def mostrar_fila():
+    if not fila_missão:
+        print("\n''A fila de personagens na missão está vazia.''")
+        return
+    print("\nPersonagens em missão:")
+    for i, p in enumerate(fila_missão, 1):
+        print(f"{i}. {p['Codinome']} ({p['Tipo']})")
+
+def chamar_primeiro_enviado():
+    if not fila_missão:
+        print("\n''Fila vazia. Nenhum personagem em missão.''")
+        return
+    personagem = fila_missão.popleft()
+    print(f"\nPersonagem ({personagem['Codinome']}) foi chamado de volta com sucesso!")
+
+
+#Função com pilha
+def mostrar_ultimos_personagens():
+    if not stack_ultimos_personagens:
+        print("\n''Nenhum personagem cadastrado ainda.''")
+        return
+
+    print("\nÚltimos personagens cadastrados (mais recente primeiro):")
+    for i, p in enumerate(reversed(stack_ultimos_personagens[-5:]), 1): 
+        print(f"{i}. {p['Codinome']} ({p['Tipo']}) - ID: {p['ID']}")
+
+
+# Função principal
 def main():
     while True:
         print("\n--< Menu Principal >--")
@@ -250,6 +354,10 @@ def main():
         print("7. Mostrar todos os Tipos")
         print("8. Editar um Tipo pelo nome")
         print("9. Excluir um Tipo pelo nome")
+        print("10. Adicionar Personagem em uma Missão")
+        print("11. Mostrar Personagens em missão")
+        print("12. Chamar Primeiro enviado")
+        print("13. Mostrar últimos personagens cadastrados")
         print("x. Sair")
         opcao = input("-Escolha uma opção: ")
 
@@ -263,11 +371,17 @@ def main():
             case "7": mostrar_tipos()
             case "8": editar_tipo()
             case "9": excluir_tipo()
+            case "10": adicionar_na_fila()
+            case "11": mostrar_fila()
+            case "12": chamar_primeiro_enviado()
+            case "13": mostrar_ultimos_personagens()
             case "x" | "X":
-                salvar_dados();
+                salvar_dados()
                 print("\n''Dados Salvos com sucesso!(..saindo..)''")
                 break
             case _: print("\n''Opção inválida.''")
 
 if __name__ == "__main__":
     main()
+
+
