@@ -2,6 +2,7 @@ import json
 import os
 from collections import deque
 
+
 stack_ultimos_personagens = []
 
 # (Dados principais)
@@ -380,6 +381,7 @@ def main():
                 print("\n''Dados Salvos com sucesso!(..saindo..)''")
                 break
             case _: print("\n''Opção inválida.''")
+
 
 if __name__ == "__main__":
     main()
